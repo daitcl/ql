@@ -20,46 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Load and validate version.txt
-        id: set-versions
-        run: |
-          # 确保version.txt文件存在
-          if [ ! -f version.txt ]; then
-            echo "::error::version.txt file not found!"
-            exit 1
-          fi
-          
-          # 处理Windows换行符
-          sed -i 's/\r$//' version.txt
-          
-          # 提取digest
-          DIGEST=$(grep -oP 'digest=\s*\K[^ ]+' version.txt)
-          if [ -z "$DIGEST" ]; then
-            echo "::error::Missing or empty digest in version.txt file"
-            exit 1
-          fi
-          
-          # 验证digest格式（应该是64位十六进制字符串）
-          if [[ ! "$DIGEST" =~ ^[a-f0-9]{64}$ ]]; then
-            echo "::error::Invalid digest format: $DIGEST"
-            exit 1
-          fi
-          
-          echo "BASE_DIGEST=$DIGEST" >> $GITHUB_ENV
-          echo "IMAGE_TAG=${DIGEST:0:12}" >> $GITHUB_ENV
-          echo "Set BASE_DIGEST=$DIGEST"
-          echo "Set IMAGE_TAG=${DIGEST:0:12}"
-
-      - name: Debug BASE_DIGEST value
-        run: |
-          BASE_DIGEST="${{ env.BASE_DIGEST }}"
-          echo "BASE_DIGEST value: $BASE_DIGEST"
-          echo "BASE_DIGEST length: ${#BASE_DIGEST}"
-          if [ -z "$BASE_DIGEST" ]; then
-            echo "::error::BASE_DIGEST is empty!"
-            exit 1
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
@@ -82,8 +42,6 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
-          build-args: |
-            BASE_DIGEST=${{ env.BASE_DIGEST }}
           platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -91,7 +49,6 @@ jobs:
       - name: Show build information
         run: |
           echo "=== Build Summary ==="
-          echo "Base Image Digest: ${{ env.BASE_DIGEST }}"
           echo "Image Tag: ${{ env.IMAGE_TAG }}"
           echo ""
           echo "GitHub Container Registry:"

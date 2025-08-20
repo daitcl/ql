@@ -39,10 +39,25 @@ jobs:
             exit 1
           fi
           
+          # 验证digest格式（应该是64位十六进制字符串）
+          if [[ ! "$DIGEST" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "::error::Invalid digest format: $DIGEST"
+            exit 1
+          fi
+          
           echo "BASE_DIGEST=$DIGEST" >> $GITHUB_ENV
           echo "IMAGE_TAG=${DIGEST:0:12}" >> $GITHUB_ENV
           echo "Set BASE_DIGEST=$DIGEST"
           echo "Set IMAGE_TAG=${DIGEST:0:12}"
+
+      - name: Debug BASE_DIGEST value
+        run: |
+          echo "BASE_DIGEST value: ${{ env.BASE_DIGEST }}"
+          echo "BASE_DIGEST length: ${#env.BASE_DIGEST}"
+          if [ -z "${{ env.BASE_DIGEST }}" ]; then
+            echo "::error::BASE_DIGEST is empty!"
+            exit 1
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

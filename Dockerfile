@@ -26,8 +26,8 @@ RUN CHROME_MAJOR_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '
     && rm -f /tmp/chromedriver.zip
 
 # 第二阶段: 最终镜像
-# 定义构建参数
-ARG BASE_DIGEST
+# 定义构建参数并提供默认值
+ARG BASE_DIGEST=latest
 FROM ghcr.io/whyour/qinglong:debian@${BASE_DIGEST}
 
 # 设置环境变量

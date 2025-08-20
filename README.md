@@ -3,9 +3,7 @@
 ---
 
 <div align="center">
-[![GitHub Container Registry](https://img.shields.io/badge/GHCR-181717?style=flat-square&logo=github&logoColor=white)][ghcr-url] [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://github.com/daitcl/ql/blob/main/License)
-
-[ghcr-url]: https://github.com/daitcl/ql/pkgs/container/qinglong-selenium
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://github.com/daitcl/ql/blob/main/License)
 
 </div>
 

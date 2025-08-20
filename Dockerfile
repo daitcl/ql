@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     gnupg \
     ca-certificates \
+    wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -16,20 +17,23 @@ RUN curl -sS https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearm
     && apt-get update \
     && apt-get install -y --no-install-recommends google-chrome-stable
 
-# 安装 ChromeDriver - 简化版本
-RUN CHROME_MAJOR_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1) \
+# 安装 ChromeDriver - 使用新的 API 端点
+RUN DRIVER_ARCH="linux64" \
+    && CHROME_MAJOR_VERSION=$(google-chrome --version | sed -E "s/.* ([0-9]+)(\.[0-9]+){3}.*/\1/") \
     && echo "Chrome major version: $CHROME_MAJOR_VERSION" \
-    && CHROMEDRIVER_VERSION=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION") \
-    && echo "ChromeDriver version: $CHROMEDRIVER_VERSION" \
-    && curl -sS -o /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" \
-    && unzip -q /tmp/chromedriver.zip -d /tmp/ \
-    && mv /tmp/chromedriver /usr/bin/chromedriver \
+    && echo "Getting ChromeDriver latest version from https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_MAJOR_VERSION}" \
+    && CHROME_DRIVER_VERSION=$(wget -qO- https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_MAJOR_VERSION} | sed 's/\r$//') \
+    && echo "Using ChromeDriver version: $CHROME_DRIVER_VERSION" \
+    && CHROME_DRIVER_URL="https://storage.googleapis.com/chrome-for-testing-public/$CHROME_DRIVER_VERSION/${DRIVER_ARCH}/chromedriver-${DRIVER_ARCH}.zip" \
+    && echo "Using ChromeDriver from: $CHROME_DRIVER_URL" \
+    && wget --no-verbose -O /tmp/chromedriver_${DRIVER_ARCH}.zip $CHROME_DRIVER_URL \
+    && unzip -q /tmp/chromedriver_${DRIVER_ARCH}.zip -d /tmp/ \
+    && mv /tmp/chromedriver-${DRIVER_ARCH}/chromedriver /usr/bin/chromedriver \
     && chmod +x /usr/bin/chromedriver \
-    && rm -f /tmp/chromedriver.zip \
+    && rm -rf /tmp/chromedriver_${DRIVER_ARCH}.zip /tmp/chromedriver-${DRIVER_ARCH} \
     && echo "ChromeDriver installed successfully."
 
-# 第二阶段: 最终镜像
-# 直接使用最新版本的基础镜像
+# 第二阶段保持不变...
 FROM ghcr.io/whyour/qinglong:debian
 
 # 设置环境变量

@@ -20,6 +20,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Generate image tag
+        id: tag
+        run: |
+          # 使用当前日期和时间作为标签
+          TAG=$(date +%Y%m%d-%H%M%S)
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:

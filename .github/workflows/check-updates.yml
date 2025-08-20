@@ -1,0 +1,59 @@
+name: Check Base Image Updates
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 时间 00:00 检查
+  workflow_dispatch:      # 支持手动触发
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get current digest from registry
+        id: get-digest
+        run: |
+          # 获取 GHCR token
+          TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:whyour/qinglong:pull&service=ghcr.io" | jq -r .token)
+          
+          # 获取镜像 manifest 并计算 digest
+          DIGEST=$(curl -s \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+            "https://ghcr.io/v2/whyour/qinglong/manifests/debian" | shasum -a 256 | cut -d ' ' -f1)
+          
+          echo "DIGEST=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Compare and update version.txt
+        run: |
+          # 检查 version.txt 是否存在并读取当前 digest
+          if [ -f "version.txt" ]; then
+            CURRENT_DIGEST=$(grep -oP 'digest=\s*\K[^ ]+' version.txt || echo "")
+          else
+            CURRENT_DIGEST=""
+          fi
+          
+          NEW_DIGEST="${{ steps.get-digest.outputs.DIGEST }}"
+          
+          if [ "$CURRENT_DIGEST" != "$NEW_DIGEST" ]; then
+            echo "发现新版本! 更新 version.txt"
+            echo "digest=$NEW_DIGEST" > version.txt
+            
+            # 配置 Git
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            
+            # 提交更改
+            git add version.txt
+            git commit -m "chore: 更新基础镜像 digest 为 $NEW_DIGEST"
+            git push
+          else
+            echo "镜像未更新"
+          fi

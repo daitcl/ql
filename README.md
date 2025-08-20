@@ -2,8 +2,10 @@
 
 ---
 
+
 <div align="center">
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://github.com/daitcl/ql/blob/main/License)
+
+ [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://github.com/daitcl/ql/blob/main/License)
 
 </div>
 

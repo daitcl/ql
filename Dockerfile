@@ -1,5 +1,5 @@
 # 第一阶段: 构建 Chrome 和 ChromeDriver
-FROM debian:bookworm-slim as chrome-builder
+FROM debian:bookworm-slim AS chrome-builder
 
 # 安装必要的工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,8 +26,9 @@ RUN CHROME_MAJOR_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '
     && rm -f /tmp/chromedriver.zip
 
 # 第二阶段: 最终镜像
+# 定义构建参数
 ARG BASE_DIGEST
-FROM ghcr.io/whyour/qinglong:debian@$BASE_DIGEST
+FROM ghcr.io/whyour/qinglong:debian@${BASE_DIGEST}
 
 # 设置环境变量
 ENV LANG C.UTF-8

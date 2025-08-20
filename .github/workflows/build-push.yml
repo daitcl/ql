@@ -4,6 +4,10 @@ on:
   push:
     paths:
       - 'version.txt'
+    branches: [ main ]
+  workflow_dispatch:
+  repository_dispatch:
+    types: [trigger-build]
 
 jobs:
   build-and-push:
@@ -25,9 +29,14 @@ jobs:
       - name: Extract digest from version.txt
         id: get-version
         run: |
-          DIGEST=$(grep -oP 'digest=\s*\K[^ ]+' version.txt)
-          echo "BASE_DIGEST=$DIGEST" >> $GITHUB_ENV
-          echo "IMAGE_TAG=${DIGEST:0:12}" >> $GITHUB_ENV
+          if [ -f "version.txt" ]; then
+            DIGEST=$(grep -oP 'digest=\s*\K[^ ]+' version.txt)
+            echo "BASE_DIGEST=$DIGEST" >> $GITHUB_ENV
+            echo "IMAGE_TAG=${DIGEST:0:12}" >> $GITHUB_ENV
+          else
+            echo "version.txt 文件不存在"
+            exit 1
+          fi
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -38,14 +47,13 @@ jobs:
             BASE_DIGEST=${{ env.BASE_DIGEST }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/qinglong-with-chrome:latest
+            ghcr.io/${{ github.repository_owner }}/qinglong-with-chrome:${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Update deployment manifest (可选)
+      - name: Send success notification
         if: success()
         run: |
-          # 如果有 Kubernetes 部署文件，可以在这里更新镜像标签
-          # 例如使用 sed 或 yq 替换部署文件中的镜像标签
-          echo "构建完成，可以在此步骤更新部署配置"
+          echo "镜像构建并推送成功!"
+          # 可以添加通知代码，如 Slack、Discord 或邮件

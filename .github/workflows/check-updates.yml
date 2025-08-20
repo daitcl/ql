@@ -12,7 +12,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
+          fetch-depth: 0
 
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
@@ -32,6 +33,7 @@ jobs:
           echo "DIGEST=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: Compare and update version.txt
+        id: update-version
         run: |
           # 检查 version.txt 是否存在并读取当前 digest
           if [ -f "version.txt" ]; then
@@ -53,7 +55,26 @@ jobs:
             # 提交更改
             git add version.txt
             git commit -m "chore: 更新基础镜像 digest 为 $NEW_DIGEST"
-            git push
+            
+            # 使用 PAT 推送
+            git push https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git HEAD:main
+            
+            # 设置标志表示需要触发构建
+            echo "should_trigger_build=true" >> $GITHUB_OUTPUT
           else
             echo "镜像未更新"
+            echo "should_trigger_build=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Trigger build workflow via API
+        if: steps.update-version.outputs.should_trigger_build == 'true'
+        run: |
+          # 等待几秒确保推送完成
+          sleep 10
+          
+          # 使用 API 触发构建工作流
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.PAT }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/build-push.yml/dispatches \
+            -d '{"ref":"main"}'

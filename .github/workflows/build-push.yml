@@ -5,9 +5,6 @@ on:
     paths:
       - 'version.txt'
     branches: [ main ]
-  workflow_dispatch:
-  repository_dispatch:
-    types: [trigger-build]
 
 jobs:
   build-and-push:
@@ -47,8 +44,8 @@ jobs:
             BASE_DIGEST=${{ env.BASE_DIGEST }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/qinglong-with-chrome:latest
-            ghcr.io/${{ github.repository_owner }}/qinglong-with-chrome:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/qinglong-selenium:latest
+            ghcr.io/${{ github.repository_owner }}/qinglong-selenium:${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -56,4 +53,3 @@ jobs:
         if: success()
         run: |
           echo "镜像构建并推送成功!"
-          # 可以添加通知代码，如 Slack、Discord 或邮件

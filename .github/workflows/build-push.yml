@@ -2,9 +2,14 @@ name: Build and Push Custom Image
 
 on:
   push:
+    branches: [main]
     paths:
-      - 'version.txt'
-    branches: [ main ]
+      - version.txt
+      - Dockerfile
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: qinglong-selenium
 
 jobs:
   build-and-push:
@@ -12,44 +17,66 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Load and validate version.txt
+        id: set-versions
+        run: |
+          # 确保version.txt文件存在
+          if [ ! -f version.txt ]; then
+            echo "::error::version.txt file not found!"
+            exit 1
+          fi
+          
+          # 处理Windows换行符
+          sed -i 's/\r$//' version.txt
+          
+          # 提取digest
+          DIGEST=$(grep -oP 'digest=\s*\K[^ ]+' version.txt)
+          if [ -z "$DIGEST" ]; then
+            echo "::error::Missing or empty digest in version.txt file"
+            exit 1
+          fi
+          
+          echo "BASE_DIGEST=$DIGEST" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${DIGEST:0:12}" >> $GITHUB_ENV
+          echo "Set BASE_DIGEST=$DIGEST"
+          echo "Set IMAGE_TAG=${DIGEST:0:12}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          install: true
 
-      - name: Log in to GitHub Container Registry
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract digest from version.txt
-        id: get-version
-        run: |
-          if [ -f "version.txt" ]; then
-            DIGEST=$(grep -oP 'digest=\s*\K[^ ]+' version.txt)
-            echo "BASE_DIGEST=$DIGEST" >> $GITHUB_ENV
-            echo "IMAGE_TAG=${DIGEST:0:12}" >> $GITHUB_ENV
-          else
-            echo "version.txt 文件不存在"
-            exit 1
-          fi
-
-      - name: Build and push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          build-args: |
-            BASE_DIGEST=${{ env.BASE_DIGEST }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/qinglong-selenium:latest
-            ghcr.io/${{ github.repository_owner }}/qinglong-selenium:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            BASE_DIGEST=${{ env.BASE_DIGEST }}
+          platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Send success notification
-        if: success()
+      - name: Show build information
         run: |
-          echo "镜像构建并推送成功!"
+          echo "=== Build Summary ==="
+          echo "Base Image Digest: ${{ env.BASE_DIGEST }}"
+          echo "Image Tag: ${{ env.IMAGE_TAG }}"
+          echo ""
+          echo "GitHub Container Registry:"
+          echo "https://ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}"

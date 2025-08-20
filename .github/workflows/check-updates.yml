@@ -1,4 +1,4 @@
-name: Check Base Image Updates and Build
+name: Check Base Image Updates
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:      # 支持手动触发
 
 jobs:
-  check-and-build:
+  check-update:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -14,16 +14,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get current digest from registry
         id: get-digest
@@ -39,8 +29,8 @@ jobs:
           
           echo "DIGEST=$DIGEST" >> $GITHUB_OUTPUT
 
-      - name: Compare and update version.txt
-        id: update-version
+      - name: Check current version.txt
+        id: check_versions
         run: |
           # 检查 version.txt 是否存在并读取当前 digest
           if [ -f "version.txt" ]; then
@@ -49,53 +39,77 @@ jobs:
             CURRENT_DIGEST=""
           fi
           
-          NEW_DIGEST="${{ steps.get-digest.outputs.DIGEST }}"
+          echo "Current digest in version.txt: $CURRENT_DIGEST"
+          echo "Latest digest from registry: ${{ steps.get-digest.outputs.DIGEST }}"
           
-          if [ "$CURRENT_DIGEST" != "$NEW_DIGEST" ]; then
-            echo "发现新版本! 更新 version.txt"
-            echo "digest=$NEW_DIGEST" > version.txt
-            
-            # 配置 Git
-            git config user.name "GitHub Actions"
-            git config user.email "actions@github.com"
-            
-            # 提交更改
-            git add version.txt
-            git commit -m "chore: 更新基础镜像 digest 为 $NEW_DIGEST"
-            
-            # 使用 GITHUB_TOKEN 推送
-            git push
-            
-            # 设置标志表示需要构建
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "BASE_DIGEST=$NEW_DIGEST" >> $GITHUB_ENV
-            echo "IMAGE_TAG=${NEW_DIGEST:0:12}" >> $GITHUB_ENV
+          # 设置输出变量
+          if [ "$CURRENT_DIGEST" = "${{ steps.get-digest.outputs.DIGEST }}" ]; then
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "Digest unchanged. No update needed."
           else
-            echo "镜像未更新"
-            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "New digest detected. Update required."
           fi
 
-      - name: Build and push image
-        if: steps.update-version.outputs.should_build == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          build-args: |
-            BASE_DIGEST=${{ env.BASE_DIGEST }}
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/qinglong-with-chrome:latest
-            ghcr.io/${{ github.repository_owner }}/qinglong-with-chrome:${{ env.IMAGE_TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Send notification
-        if: always()
+      - name: Update version.txt file
+        if: ${{ steps.check_versions.outputs.needs_update == 'true' }}
         run: |
-          if [ "${{ steps.update-version.outputs.should_build }}" = "true" ]; then
-            echo "镜像已更新并构建成功!"
-            # 可以添加通知代码，如 Slack、Discord 或邮件
-          else
-            echo "镜像未更新，无需构建"
+          echo "Updating version.txt with new digest:"
+          echo "digest=${{ steps.get-digest.outputs.DIGEST }}" > version.txt
+          
+          # 显示更新后的内容
+          cat version.txt
+
+      - name: Commit and push changes
+        id: commit-step
+        if: ${{ steps.check_versions.outputs.needs_update == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.txt
+          git commit -m "chore: update base image digest to ${{ steps.get-digest.outputs.DIGEST }}"
+          
+          # 尝试推送，如果失败则重试（处理并发更新冲突）
+          n=0
+          max_retries=3
+          delay=5
+          until [ $n -ge $max_retries ]
+          do
+            git pull --rebase && git push && break
+            n=$((n+1))
+            echo "Push attempt $n failed, retrying in ${delay}s..."
+            sleep $delay
+          done
+          
+          if [ $n -eq $max_retries ]; then
+            echo "::warning::Failed to push changes after $max_retries attempts"
+            exit 1
           fi
+          
+          # 设置输出标记，表示已提交更改
+          echo "changes_committed=true" >> $GITHUB_OUTPUT
+
+      - name: Trigger Build workflow
+        if: ${{ steps.commit-step.outputs.changes_committed == 'true' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'build-push.yml',
+                ref: 'main',
+              });
+              console.log('Build workflow triggered successfully.');
+            } catch (error) {
+              console.error('Failed to trigger Build workflow:', error);
+              // 不标记为失败，因为主要工作已完成
+            }
+
+      - name: Skip update if digest unchanged
+        if: ${{ steps.check_versions.outputs.needs_update == 'false' }}
+        run: |
+          echo "Skipping update:"
+          echo "Current digest already matches latest"
+          echo "Digest: ${{ steps.get-digest.outputs.DIGEST }}"

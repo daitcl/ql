@@ -88,22 +88,14 @@ RUN pip3 install --no-cache-dir \
     pillow \
     requests \
     # 安装兼容的 OpenCV 版本
-    opencv-python-headless==4.5.5.64 \
-    # 安装 ddddocr 及其 API 依赖
-    ddddocr[api] \
-    fastapi \
-    uvicorn \
-    pydantic
+    opencv-python-headless \
+    # 安装 ddddocr
+    ddddocr
 
 # 创建必要的目录和权限设置
 RUN mkdir -p /home/qinglong/.cache/google-chrome && \
     chmod -R 777 /home/qinglong/.cache && \
     chmod -R 777 /opt/google/chrome
-
-# 测试 ddddocr 安装是否成功
-RUN python3 -c "import ddddocr; print('ddddocr 安装成功')" && \
-    python3 -c "import cv2; print('OpenCV 安装成功')" && \
-    python3 -c "from PIL import Image; print('Pillow 安装成功')"
 
 # 保持原始入口点
 ENTRYPOINT ["./docker/docker-entrypoint.sh"]

@@ -61,16 +61,49 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libatk-bridge2.0-0 \
     libgtk-3-0 \
     libgbm-dev \
+    # OpenCV 和 Pillow 的系统依赖
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgl1-mesa-glx \
+    # Pillow 依赖
+    libjpeg-dev \
+    zlib1g-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libopenjp2-7-dev \
+    libtiff5-dev \
+    libwebp-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libxcb1-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Python Selenium 库
-RUN pip3 install --no-cache-dir selenium
+# 安装 Python 库 - 先安装基础依赖，然后安装 ddddocr 和兼容的 OpenCV
+RUN pip3 install --no-cache-dir \
+    selenium \
+    numpy \
+    pillow \
+    requests \
+    # 安装兼容的 OpenCV 版本
+    opencv-python-headless==4.5.5.64 \
+    # 安装 ddddocr 及其 API 依赖
+    ddddocr[api] \
+    fastapi \
+    uvicorn \
+    pydantic
 
 # 创建必要的目录和权限设置
 RUN mkdir -p /home/qinglong/.cache/google-chrome && \
     chmod -R 777 /home/qinglong/.cache && \
     chmod -R 777 /opt/google/chrome
+
+# 测试 ddddocr 安装是否成功
+RUN python3 -c "import ddddocr; print('ddddocr 安装成功')" && \
+    python3 -c "import cv2; print('OpenCV 安装成功')" && \
+    python3 -c "from PIL import Image; print('Pillow 安装成功')"
 
 # 保持原始入口点
 ENTRYPOINT ["./docker/docker-entrypoint.sh"]
